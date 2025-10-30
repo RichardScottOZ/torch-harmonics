@@ -34,7 +34,7 @@
 
 #define THREADS (64)
 
-#define MAX_LOCAL_ARR_LEN (32)
+#define MAX_LOCAL_ARR_LEN (20)
 
 namespace disco_kernels {
 
