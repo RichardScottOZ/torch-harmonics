@@ -168,11 +168,40 @@ This creates:
 
 **torch-harmonics is fundamentally a spherical library.** The models use spherical harmonics and spherical convolutions designed for data on a sphere.
 
-- **Planar/Local Rasters:** The implementation works with planar raster data, but uses spherical operations. This is geometrically approximate - the spherical operations are being applied to planar data. For local/regional studies, this approximation may be acceptable but is not ideal.
+#### Original Use Case: 360° Panoramas
+The Stanford 2D3DS dataset uses **360° panoramic images** in equirectangular projection:
+- Spherical data (panorama from a single point) unwrapped to a rectangle
+- Rows represent latitude bands with equiangular spacing
+- Columns represent longitude (wraps 360°)
+- This is TRUE spherical data where spherical operations are geometrically correct
 
-- **Spherical/Global Rasters:** For global data in geographic coordinates (lat/lon), the spherical operations are appropriate and correct. Use the `--spherical` flag in predict_raster.py.
+#### This Implementation: Planar Rasters
+Our raster stack implementation treats data as **standard GIS rasters**:
+- Cartesian (x,y) coordinates, not spherical (lat,lon) on a globe
+- Planar projections: UTM, State Plane, local coordinates
+- Standard satellite scenes (Landsat, Sentinel) - not panoramic
+- Regional/local coverage (mineral deposits, land surveys)
 
-- **Recommendation:** For purely planar applications, consider using standard CNN architectures. For global/spherical data, this implementation properly leverages torch-harmonics' capabilities.
+#### Data Format Comparison
+
+| Aspect | Stanford 2D3DS (Original) | Raster Stack (This Implementation) |
+|--------|---------------------------|-------------------------------------|
+| Format | Equirectangular panorama | Planar GIS raster |
+| Coverage | 360° spherical view | Rectangular region |
+| Coordinates | (lat, lon) on sphere | (x, y) in projection |
+| Grid Type | Equiangular latitude | Regular Cartesian grid |
+| Spherical Ops | Geometrically correct | Approximate |
+| Use Case | Panoramic imagery, global data | Regional surveys, local mapping |
+
+#### Recommendations
+
+- **For local/planar data (mineral deposits, regional surveys):** This implementation works but uses spherical operations on planar data (approximate). Acceptable for many applications but not geometrically precise.
+
+- **For true spherical data (360° panoramas, global climate):** Data must be in equirectangular format with proper lat/lon spacing. Use `--spherical` flag in predictions.
+
+- **For purely planar applications requiring geometric precision:** Consider standard CNN architectures instead of spherical convolution models.
+
+- **For global data:** This implementation can work if data is properly formatted in equirectangular projection, but verify the grid assumptions match.
 
 ### 2. Grid Assumptions
 

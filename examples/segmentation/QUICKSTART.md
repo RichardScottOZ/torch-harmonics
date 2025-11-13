@@ -31,12 +31,20 @@ Make sure both files:
 - Cover the same geographic area
 - Have valid geospatial metadata
 
-### ⚠️ Important: Spherical vs Planar Data
+### ⚠️ Important: Data Format and Spherical Operations
 
-**torch-harmonics is a spherical library** using spherical harmonics and convolutions:
-- **For local/planar data**: Works but uses spherical operations on planar data (approximate)
-- **For global/spherical data**: Proper use case - ensure data is in lat/lon coordinates
-- Consider standard CNNs for purely planar applications if geometric precision is critical
+**torch-harmonics is a spherical library** designed for spherical data (360° panoramas, global coverage).
+
+**Original Use Case:** Stanford 2D3DS uses 360° panoramic images in equirectangular projection - true spherical data where spherical operations are correct.
+
+**This Implementation:** Treats rasters as standard planar GIS data (UTM, State Plane, etc.) - NOT panoramic.
+
+**What this means:**
+- ✅ **Works for**: Local/regional mineral surveys, standard satellite imagery
+- ⚠️ **Approximate**: Spherical operations applied to planar data (acceptable for many uses)
+- ❌ **Not ideal for**: True 360° panoramas (need proper equirectangular format)
+
+**Bottom line:** For mineral deposit mapping in standard projected coordinates, this implementation is suitable despite using spherical operations. For true spherical/panoramic data, ensure proper equirectangular format.
 
 ## Quick Start Examples
 

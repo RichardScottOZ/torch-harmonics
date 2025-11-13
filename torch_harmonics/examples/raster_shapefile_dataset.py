@@ -49,14 +49,18 @@ class RasterShapefileDataset(Dataset):
     """
     Dataset for raster stack data with shapefile labels for binary classification.
     
-    This dataset loads a raster stack and creates binary labels from a shapefile.
+    This dataset loads standard GIS rasters (planar coordinates) and creates binary 
+    labels from a shapefile. Designed for regional/local studies (e.g., mineral 
+    deposits) in standard map projections, NOT for 360° panoramic/equirectangular data.
+    
     Supports both point geometries (e.g., mineral deposit locations) and polygon
     geometries. Points are automatically buffered to be visible at raster resolution.
     
     Parameters
     ----------
     raster_path : str
-        Path to the raster file (GeoTIFF or similar format)
+        Path to the raster file (GeoTIFF or similar format) in any standard projection
+        (UTM, State Plane, geographic, etc.)
     shapefile_path : str
         Path to the shapefile containing labels (supports Points, MultiPoints, 
         Polygons, MultiPolygons, LineStrings)
@@ -79,9 +83,14 @@ class RasterShapefileDataset(Dataset):
         
     Notes
     -----
-    Point geometries are buffered by ~0.5 pixel radius to ensure they are visible
-    in the rasterized output. This is important for sparse point labels like
-    mineral deposits.
+    - Point geometries are buffered by ~0.5 pixel radius to ensure they are visible
+      in the rasterized output. This is important for sparse point labels like
+      mineral deposits.
+    - This dataset treats rasters as planar images with Cartesian coordinates,
+      not as spherical/equirectangular projections. For 360° panoramic data,
+      different preprocessing is needed.
+    - When used with torch-harmonics spherical models, spherical operations are
+      applied to planar data (geometrically approximate but functional for local areas).
     """
     
     def __init__(
