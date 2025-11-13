@@ -60,6 +60,11 @@ dev = [
     "pillow",
     "h5py",
 ]
+raster = [
+    "rasterio>=1.3.0",
+    "geopandas>=0.12.0",
+    "shapely>=2.0.0",
+]
 
 [tool.black]
 line-length = 180
