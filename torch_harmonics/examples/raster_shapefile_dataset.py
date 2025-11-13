@@ -50,13 +50,16 @@ class RasterShapefileDataset(Dataset):
     Dataset for raster stack data with shapefile labels for binary classification.
     
     This dataset loads a raster stack and creates binary labels from a shapefile.
+    Supports both point geometries (e.g., mineral deposit locations) and polygon
+    geometries. Points are automatically buffered to be visible at raster resolution.
     
     Parameters
     ----------
     raster_path : str
         Path to the raster file (GeoTIFF or similar format)
     shapefile_path : str
-        Path to the shapefile containing polygon labels
+        Path to the shapefile containing labels (supports Points, MultiPoints, 
+        Polygons, MultiPolygons, LineStrings)
     label_column : str, optional
         Column name in shapefile to use for labels (default: 'label')
     transform : callable, optional
@@ -73,6 +76,12 @@ class RasterShapefileDataset(Dataset):
         (input_tensor, label_tensor) where:
         - input_tensor: torch.Tensor of shape (C, H, W)
         - label_tensor: torch.Tensor of shape (1, H, W) with binary labels
+        
+    Notes
+    -----
+    Point geometries are buffered by ~0.5 pixel radius to ensure they are visible
+    in the rasterized output. This is important for sparse point labels like
+    mineral deposits.
     """
     
     def __init__(
@@ -137,33 +146,73 @@ class RasterShapefileDataset(Dataset):
         return self._raster_data
     
     def _load_labels(self):
-        """Rasterize shapefile labels."""
+        """Rasterize shapefile labels, supporting both polygons and points."""
         if self._label_data is None:
             # Create binary labels from shapefile
             shapes = []
+            points = []
+            
             for idx, row in self.gdf.iterrows():
                 if self.label_column in row and row[self.label_column]:
                     # Use label value from column, or default to 1 for presence
                     label_value = 1
                     if isinstance(row[self.label_column], (int, float)):
                         label_value = int(row[self.label_column])
-                    shapes.append((row.geometry, label_value))
+                    
+                    geom_type = row.geometry.geom_type
+                    if geom_type in ['Point', 'MultiPoint']:
+                        # Store points separately for buffer-based rasterization
+                        points.append((row.geometry, label_value))
+                    else:
+                        # Polygons, LineStrings, etc.
+                        shapes.append((row.geometry, label_value))
             
-            # Rasterize the geometries
+            # Initialize empty label array
+            self._label_data = np.zeros(
+                (self.raster_shape[1], self.raster_shape[2]),
+                dtype=np.uint8
+            )
+            
+            # Rasterize polygon/line geometries
             if shapes:
                 self._label_data = rasterize(
                     shapes,
                     out_shape=(self.raster_shape[1], self.raster_shape[2]),
                     transform=self.raster_transform,
                     fill=0,
-                    dtype=np.uint8
+                    dtype=np.uint8,
+                    all_touched=False
                 )
-            else:
-                # No labels, create empty label array
-                self._label_data = np.zeros(
-                    (self.raster_shape[1], self.raster_shape[2]),
-                    dtype=np.uint8
-                )
+            
+            # Rasterize point geometries with a buffer
+            if points:
+                # Buffer points to make them visible at raster resolution
+                # Use ~1 pixel buffer (adjust based on resolution)
+                from shapely.geometry import Point
+                pixel_size = abs(self.raster_transform[0])  # Approximate pixel size
+                buffer_size = pixel_size * 0.5  # Half pixel radius
+                
+                buffered_shapes = []
+                for geom, label_val in points:
+                    if geom.geom_type == 'Point':
+                        buffered = geom.buffer(buffer_size)
+                        buffered_shapes.append((buffered, label_val))
+                    elif geom.geom_type == 'MultiPoint':
+                        for point in geom.geoms:
+                            buffered = point.buffer(buffer_size)
+                            buffered_shapes.append((buffered, label_val))
+                
+                if buffered_shapes:
+                    point_raster = rasterize(
+                        buffered_shapes,
+                        out_shape=(self.raster_shape[1], self.raster_shape[2]),
+                        transform=self.raster_transform,
+                        fill=0,
+                        dtype=np.uint8,
+                        all_touched=True  # Use all_touched for points
+                    )
+                    # Merge point labels with existing labels
+                    self._label_data = np.maximum(self._label_data, point_raster)
                 
         return self._label_data
     

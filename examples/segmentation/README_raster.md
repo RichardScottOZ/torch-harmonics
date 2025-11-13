@@ -95,10 +95,13 @@ python train_raster.py \
 - Format: GeoTIFF or any format supported by rasterio
 - Expected shape: (bands, height, width) - e.g., (99, 2000, 4000)
 - All bands will be used as input channels to the model
+- **For spherical predictions**: Data should be in geographic coordinates (EPSG:4326 or similar)
 
 ### Shapefile Data
 - Format: Shapefile (.shp) with associated files (.shx, .dbf, .prj)
-- Must contain polygons or multipolygons
+- **Supported geometries**: Points, MultiPoints, Polygons, MultiPolygons
+  - **Point geometries** (e.g., mineral deposit locations): Automatically buffered to be visible at raster resolution
+  - **Polygon geometries**: Directly rasterized
 - Must have a column with label values (specified by `--label_column`)
 - Should be in the same CRS as the raster, or will be automatically reprojected
 
@@ -130,10 +133,53 @@ The script creates the following outputs:
 
 4. Check outputs in `checkpoints_raster/`
 
-## Notes
+## Making Predictions
 
+After training, use the prediction script to make predictions on new rasters:
+
+```bash
+# Basic prediction
+python predict_raster.py \
+    --checkpoint checkpoints_raster/model_name/checkpoint.pt \
+    --model_name unet_sc2_layers4_e32 \
+    --raster_path /path/to/new_raster.tif \
+    --output_path predictions.tif \
+    --in_channels 99 \
+    --num_classes 2
+
+# Spherical prediction for global/geographic data
+python predict_raster.py \
+    --checkpoint checkpoints_raster/model_name/checkpoint.pt \
+    --model_name unet_sc2_layers4_e32 \
+    --raster_path /path/to/global_raster.tif \
+    --output_path predictions.tif \
+    --in_channels 99 \
+    --num_classes 2 \
+    --spherical
+```
+
+## Important Notes
+
+### Spherical vs Planar Data
+**torch-harmonics is a spherical library** designed for data on a sphere (e.g., global climate, Earth observation). The models use spherical convolutions and harmonics.
+
+- **For planar/local raster data**: The implementation works but uses spherical operations on planar data. This is geometrically approximate but functional.
+- **For global/spherical data**: 
+  - Input rasters should be in geographic coordinates (lat/lon, EPSG:4326)
+  - Use `--spherical` flag in predict_raster.py for proper spherical inference
+  - The equiangular grid assumption from the library is appropriate
+
+### Point Geometries
+- The dataset now supports **point geometries** (e.g., mineral deposit locations)
+- Points are automatically buffered to ~0.5 pixel radius to be visible in rasterization
+- Both point and polygon labels can be used in the same shapefile
+
+### Platform Compatibility
+- **Windows**: Fully supported with automatic multiprocessing configuration
+- **Linux/macOS**: Uses forkserver for better process isolation
+
+### Other Notes
 - The script automatically computes normalization statistics from the training data
 - Binary classification is assumed (2 classes: 0 and 1)
 - For very large rasters, use tiling to reduce memory usage
-- The script uses equiangular grid assumptions from the original spherical data code
 - Adjust batch size based on your GPU memory availability

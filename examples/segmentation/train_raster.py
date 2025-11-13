@@ -612,8 +612,19 @@ def main(
 
 if __name__ == "__main__":
     import torch.multiprocessing as mp
+    import platform
 
-    mp.set_start_method("forkserver", force=True)
+    # Use spawn method for cross-platform compatibility (Windows, Linux, macOS)
+    # forkserver is not available on Windows
+    try:
+        if platform.system() == "Windows":
+            mp.set_start_method("spawn", force=True)
+        else:
+            # Prefer forkserver on Unix-like systems for better isolation
+            mp.set_start_method("forkserver", force=True)
+    except RuntimeError:
+        # If context has already been set, continue
+        pass
 
     # Try to login to wandb if available
     if wandb is not None:

@@ -21,13 +21,22 @@ pip install torch-harmonics[raster]
 You need two files:
 - **Raster file** (GeoTIFF format recommended): Your multi-band raster stack
   - Example: `raster_stack.tif` with shape (99, 2000, 4000)
-- **Shapefile**: Vector polygons with labels
+  - For global data: Should be in geographic coordinates (EPSG:4326)
+- **Shapefile**: Vector data with labels
   - Example: `sedex_mineral_deposits.shp` with a "label" column
+  - **Supports**: Points (mineral deposits), MultiPoints, Polygons, MultiPolygons
 
 Make sure both files:
 - Use the same or compatible coordinate reference system (CRS)
 - Cover the same geographic area
 - Have valid geospatial metadata
+
+### ⚠️ Important: Spherical vs Planar Data
+
+**torch-harmonics is a spherical library** using spherical harmonics and convolutions:
+- **For local/planar data**: Works but uses spherical operations on planar data (approximate)
+- **For global/spherical data**: Proper use case - ensure data is in lat/lon coordinates
+- Consider standard CNNs for purely planar applications if geometric precision is critical
 
 ## Quick Start Examples
 

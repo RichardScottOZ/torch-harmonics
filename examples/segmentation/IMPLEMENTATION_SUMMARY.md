@@ -164,13 +164,39 @@ This creates:
 
 ## Limitations and Considerations
 
-1. **Grid Assumption:** The implementation uses S2 (spherical) loss functions and metrics from the original code. For planar rasters, this may not be geometrically correct, but works as a weighted loss/metric. Future work could add planar-specific versions.
+### 1. Spherical vs Planar Data (IMPORTANT)
 
-2. **Memory Usage:** Full raster loading requires sufficient RAM. Use tiling for large rasters (>2GB).
+**torch-harmonics is fundamentally a spherical library.** The models use spherical harmonics and spherical convolutions designed for data on a sphere.
 
-3. **Binary Classification Only:** Current implementation is for binary classification. Multi-class support would require minimal changes to label rasterization.
+- **Planar/Local Rasters:** The implementation works with planar raster data, but uses spherical operations. This is geometrically approximate - the spherical operations are being applied to planar data. For local/regional studies, this approximation may be acceptable but is not ideal.
 
-4. **Coordinate Systems:** Assumes raster and shapefile can be aligned in the same CRS. Complex coordinate transformations may need additional handling.
+- **Spherical/Global Rasters:** For global data in geographic coordinates (lat/lon), the spherical operations are appropriate and correct. Use the `--spherical` flag in predict_raster.py.
+
+- **Recommendation:** For purely planar applications, consider using standard CNN architectures. For global/spherical data, this implementation properly leverages torch-harmonics' capabilities.
+
+### 2. Grid Assumptions
+
+The implementation uses S2 (spherical) loss functions and metrics with equiangular grid assumptions. For planar rasters, these act as weighted losses/metrics but are not geometrically precise.
+
+### 3. Point Geometry Support
+
+Point geometries (e.g., mineral deposits) are supported by automatically buffering them to ~0.5 pixel radius. This ensures points are visible in the rasterized labels.
+
+### 4. Memory Usage
+
+Full raster loading requires sufficient RAM. Use tiling for large rasters (>2GB).
+
+### 5. Binary Classification Only
+
+Current implementation is for binary classification. Multi-class support would require minimal changes to label rasterization.
+
+### 6. Coordinate Systems
+
+Assumes raster and shapefile can be aligned in the same CRS. Complex coordinate transformations may need additional handling.
+
+### 7. Platform Compatibility
+
+Windows support is enabled via automatic multiprocessing method selection (spawn vs forkserver).
 
 ## Future Enhancements
 
