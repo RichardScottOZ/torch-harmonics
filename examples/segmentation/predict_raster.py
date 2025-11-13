@@ -31,13 +31,20 @@
 #
 
 """
-Inference script for making predictions on raster data with trained models.
+Inference script for making predictions on planar raster data with trained models.
+
+IMPORTANT: This script treats ALL rasters as planar rectangular images.
+The --spherical flag does NOT perform any data transformations or special
+spherical processing - it only validates CRS. The models apply spherical
+convolutions to rectangular data in both modes.
 
 This script handles:
 - Loading trained models from checkpoints
-- Making predictions on new raster data
-- Optional spherical projection for global datasets
+- Making predictions on raster data (treated as planar rectangles)
 - Saving predictions back to GeoTIFF format
+
+For true spherical/equirectangular data processing with proper topology
+handling, additional preprocessing would be required (not implemented here).
 """
 
 import os
@@ -265,18 +272,23 @@ def predict_on_sphere(
     lat_grid='equiangular',
 ):
     """
-    Make predictions on global/spherical data.
+    Make predictions on raster data with CRS validation for geographic coordinates.
     
-    This function assumes the input raster represents spherical data
-    (e.g., global climate data, satellite imagery) and uses the model's
-    spherical convolution capabilities appropriately.
+    NOTE: This function performs IDENTICAL processing to predict_on_raster().
+    It does NOT perform any special spherical transformations. The only difference
+    is it warns if the raster is not in geographic CRS. The model processes the
+    data as a rectangular array regardless of the spherical flag.
+    
+    For true spherical data handling with proper topology (periodic boundaries,
+    pole treatment, equiangular spacing), additional preprocessing is required
+    which is NOT implemented in this script.
     
     Parameters
     ----------
     model : nn.Module
-        Trained model with spherical operations
+        Trained model (applies spherical ops to rectangular data)
     raster_path : str
-        Path to input raster (should be in lat/lon projection)
+        Path to input raster
     output_path : str
         Path to save predictions
     normalization : callable, optional
@@ -284,15 +296,17 @@ def predict_on_sphere(
     device : torch.device
         Device for inference
     lat_grid : str
-        Latitude grid type ('equiangular' or 'legendre-gauss')
+        Not used - present for API compatibility only
     """
     
     # Open input raster and verify it's in a geographic coordinate system
     with rasterio.open(raster_path) as src:
         if src.crs is None or not src.crs.is_geographic:
             print("Warning: Raster CRS is not geographic. ")
-            print("For spherical predictions, raster should be in lat/lon (EPSG:4326 or similar)")
+            print("For geographic data, raster should be in lat/lon (EPSG:4326 or similar)")
             print("Consider reprojecting your data with gdalwarp -t_srs EPSG:4326")
+            print("\nNote: This warning is informational only. Processing will proceed")
+            print("identically to planar mode - no special spherical handling occurs.")
         
         raster_data = src.read()
         profile = src.profile
@@ -304,18 +318,14 @@ def predict_on_sphere(
     if normalization is not None:
         raster_tensor = normalization(raster_tensor)
     
-    # Process with spherical model
+    # Process data (identically to planar mode)
     with torch.no_grad():
         input_batch = raster_tensor.unsqueeze(0).to(device)  # (1, C, H, W)
-        
-        # The model expects data in lat/lon format where:
-        # - First dimension (H) represents latitude (typically equiangular)
-        # - Second dimension (W) represents longitude
         output = model(input_batch)
         predictions = nn.functional.softmax(output, dim=1)
         predictions = torch.argmax(predictions, dim=1).squeeze(0).cpu().numpy()
     
-    # Save predictions maintaining geographic projection
+    # Save predictions
     profile.update(
         dtype=rasterio.uint8,
         count=1,
@@ -325,8 +335,8 @@ def predict_on_sphere(
     with rasterio.open(output_path, 'w', **profile) as dst:
         dst.write(predictions.astype(np.uint8), 1)
     
-    print(f"Spherical predictions saved to: {output_path}")
-    print(f"Output maintains geographic projection from input")
+    print(f"Predictions saved to: {output_path}")
+    print(f"Output maintains projection from input")
 
 
 def main():
@@ -388,7 +398,7 @@ def main():
     parser.add_argument(
         "--spherical",
         action="store_true",
-        help="Use spherical prediction mode for global/geographic data"
+        help="Validate geographic CRS (warning only - processing is identical to planar mode)"
     )
     parser.add_argument(
         "--normalize_stats",
@@ -437,8 +447,9 @@ def main():
     # Make predictions
     print("\nMaking predictions...")
     if args.spherical:
-        print("Using SPHERICAL prediction mode")
-        print("Note: Input raster should be in geographic coordinates (lat/lon)")
+        print("Mode: SPHERICAL (CRS validation only)")
+        print("Note: Processing is identical to planar mode - no special transformations occur")
+        print("      Rasters are treated as rectangular arrays regardless of this flag")
         predict_on_sphere(
             model,
             args.raster_path,
@@ -447,7 +458,7 @@ def main():
             device=device
         )
     else:
-        print("Using PLANAR prediction mode")
+        print("Mode: PLANAR (default)")
         if tile_size is not None:
             print(f"Processing with tiles: {tile_size}, stride: {stride}")
         predict_on_raster(

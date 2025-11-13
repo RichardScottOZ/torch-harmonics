@@ -138,7 +138,7 @@ The script creates the following outputs:
 After training, use the prediction script to make predictions on new rasters:
 
 ```bash
-# Basic prediction
+# Basic prediction (all data processed as rectangular arrays)
 python predict_raster.py \
     --checkpoint checkpoints_raster/model_name/checkpoint.pt \
     --model_name unet_sc2_layers4_e32 \
@@ -147,61 +147,68 @@ python predict_raster.py \
     --in_channels 99 \
     --num_classes 2
 
-# Spherical prediction for global/geographic data
+# With --spherical flag (adds CRS validation only - processing identical)
 python predict_raster.py \
     --checkpoint checkpoints_raster/model_name/checkpoint.pt \
     --model_name unet_sc2_layers4_e32 \
-    --raster_path /path/to/global_raster.tif \
+    --raster_path /path/to/raster.tif \
     --output_path predictions.tif \
     --in_channels 99 \
     --num_classes 2 \
-    --spherical
+    --spherical  # Only validates CRS - no special processing
 ```
+
+**IMPORTANT**: The `--spherical` flag does NOT perform any data transformations or special 
+spherical processing. Both modes treat rasters identically as rectangular arrays.
 
 ## Important Notes
 
-### Spherical vs Planar Data
-**torch-harmonics is a spherical library** designed for data on a sphere (e.g., global climate, 360° panoramas). The models use spherical convolutions and harmonics.
+### Data Processing: Planar Rectangular Arrays Only
 
-#### Understanding Data Formats
+**CRITICAL LIMITATION**: This implementation treats ALL rasters as planar rectangular arrays.
+There is NO special handling for spherical/equirectangular data despite using spherical models.
 
-**Original Stanford 2D3DS Dataset Format:**
-- Uses 360° panoramic images in **equirectangular projection**
-- Represents spherical data (panorama) unwrapped into a rectangle
-- Rows = latitude bands with equiangular spacing
-- Columns = longitude (wraps around 360°)
-- This is TRUE spherical data suitable for spherical operations
+#### What Actually Happens
 
-**Raster Stack Format (This Implementation):**
-- Standard GIS rasters with Cartesian (x,y) coordinates
-- **Planar/local data**: Regional surveys, mineral deposits in UTM projection
-- **Not panoramic**: Standard rectangular imagery
-- Spherical operations approximate for local/regional data
+**Both "planar" and "spherical" modes:**
+1. Read raster as rectangular numpy array (bands, height, width)
+2. Pass through model with spherical convolutions applied to this rectangular data
+3. Save output as rectangular raster
+
+**The models from torch-harmonics apply spherical operations**, but the data pipeline does
+not transform or validate data for spherical topology. This means:
+
+- ✅ Works for regional/local data (approximate but functional)
+- ❌ Does NOT properly handle spherical topology (no periodic boundaries, pole treatment, etc.)
+- ❌ Does NOT validate equiangular spacing or other spherical grid requirements
+- ❌ Does NOT differ between planar and spherical modes (only CRS warning differs)
+
+#### Comparison with Original Stanford 2D3DS
+
+**Stanford 2D3DS (what models were designed for):**
+- 360° panoramic images in equirectangular projection
+- True spherical topology with equiangular latitude spacing
+- Models operate correctly on this spherical representation
+
+**This Implementation:**
+- Standard GIS rasters treated as planar rectangles
+- No spherical topology handling
+- Models apply spherical operations to rectangular data (approximate)
 
 #### When to Use This Implementation
 
-✅ **Appropriate for:**
-- Regional mineral deposit mapping (local coordinates)
-- Planar projected rasters (UTM, State Plane, etc.)
-- Standard satellite imagery (Landsat, Sentinel scenes)
-- Non-panoramic data
+✅ **Suitable for:**
+- Regional mineral deposit mapping
+- Standard satellite imagery (Landsat, Sentinel)
+- Local surveys where approximation acceptable
 
-⚠️ **Approximate for:**
-- Local/regional rasters in geographic coordinates
-- Small areas where Earth curvature is negligible
-- When spherical accuracy is not critical
+❌ **Not suitable for:**
+- True spherical/panoramic data requiring proper topology
+- Applications requiring geometric precision
+- Global coverage with proper pole/periodic boundary handling
 
-❌ **Not designed for:**
-- True 360° panoramic/equirectangular imagery
-- Full global coverage requiring proper spherical unwrapping
-
-#### For Global/Spherical Data
-
-If you have true spherical data (360° panoramas, global climate):
-- Ensure raster is in equirectangular projection (EPSG:4326)
-- Data should span appropriate longitude range
-- Use `--spherical` flag in predict_raster.py
-- Consider whether data matches the equiangular grid assumptions
+**For proper spherical data processing**, additional preprocessing and model adaptations
+would be required (not implemented in this script).
 
 ### Point Geometries
 - The dataset now supports **point geometries** (e.g., mineral deposit locations)

@@ -31,20 +31,26 @@ Make sure both files:
 - Cover the same geographic area
 - Have valid geospatial metadata
 
-### ⚠️ Important: Data Format and Spherical Operations
+### ⚠️ Critical Limitation: Planar Processing Only
 
-**torch-harmonics is a spherical library** designed for spherical data (360° panoramas, global coverage).
+**This implementation treats ALL rasters as planar rectangular arrays.**
 
-**Original Use Case:** Stanford 2D3DS uses 360° panoramic images in equirectangular projection - true spherical data where spherical operations are correct.
+Despite using torch-harmonics' spherical models, there is **NO special handling** for spherical
+data topology. The `--spherical` flag only validates CRS - it does NOT transform data or 
+handle spherical topology (periodic boundaries, poles, equiangular spacing, etc.).
 
-**This Implementation:** Treats rasters as standard planar GIS data (UTM, State Plane, etc.) - NOT panoramic.
+**What actually happens:**
+1. Raster read as rectangular array
+2. Spherical model operations applied to this rectangular data
+3. Output saved as rectangular array
 
-**What this means:**
-- ✅ **Works for**: Local/regional mineral surveys, standard satellite imagery
-- ⚠️ **Approximate**: Spherical operations applied to planar data (acceptable for many uses)
-- ❌ **Not ideal for**: True 360° panoramas (need proper equirectangular format)
+**This means:**
+- ✅ **Works for**: Regional mineral mapping (approximate but functional)
+- ❌ **Does NOT properly handle**: True spherical/equirectangular panoramas
+- ⚠️ **Spherical operations applied to planar data** (not geometrically precise)
 
-**Bottom line:** For mineral deposit mapping in standard projected coordinates, this implementation is suitable despite using spherical operations. For true spherical/panoramic data, ensure proper equirectangular format.
+**Bottom line:** Suitable for regional mineral deposits where approximation is acceptable.
+NOT suitable for true spherical data without additional preprocessing (not implemented).
 
 ## Quick Start Examples
 
