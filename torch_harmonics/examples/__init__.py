@@ -35,3 +35,4 @@ from .shallow_water_equations import ShallowWaterSolver
 from .pde_dataset import PdeDataset
 from .stanford_2d3ds_dataset import StanfordSegmentationDataset, StanfordDepthDataset, Stanford2D3DSDownloader, compute_stats_s2, StanfordDatasetSubset
 from .raster_shapefile_dataset import RasterShapefileDataset, compute_stats_raster
+from .spherical_raster_dataset import SphericalRasterDataset, compute_stats_spherical
