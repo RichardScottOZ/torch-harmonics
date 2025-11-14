@@ -41,7 +41,14 @@ from torch_harmonics.quadrature import _precompute_latitudes
 from torch_harmonics.disco.convolution import _precompute_convolution_tensor_s2
 from torch_harmonics.attention._attention_utils import _neighborhood_s2_attention_torch, _neighborhood_s2_attention_optimized
 from torch_harmonics.filter_basis import get_filter_basis
-from attention_helpers import optimized_kernels_is_available
+
+# Import with fallback for attention_helpers
+try:
+    from attention_helpers import optimized_kernels_is_available
+except ImportError:
+    # Fallback if attention_helpers is not available
+    def optimized_kernels_is_available():
+        return False
 
 
 class AttentionS2(nn.Module):

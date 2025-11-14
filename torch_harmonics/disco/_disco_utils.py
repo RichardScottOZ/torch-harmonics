@@ -33,7 +33,15 @@ from typing import Optional
 import math
 
 import torch
-from disco_helpers import optimized_kernels_is_available
+
+# Import from parent module to get the fallback-enabled version
+try:
+    from disco_helpers import optimized_kernels_is_available
+except ImportError:
+    # Fallback if disco_helpers is not available
+    def optimized_kernels_is_available():
+        return False
+
 from . import disco_kernels
 
 # custom kernels
@@ -139,6 +147,14 @@ def _disco_s2_transpose_contraction_bwd_optimized(ctx, grad_output):
 if optimized_kernels_is_available():
     torch.library.register_autograd(
         "disco_kernels::_disco_s2_transpose_contraction_optimized", _disco_s2_transpose_contraction_bwd_optimized, setup_context=_setup_context_conv_backward)
+else:
+    # Provide stub functions when optimized kernels are not available
+    # These should never be called, but need to exist for imports
+    def _disco_s2_contraction_optimized(*args, **kwargs):
+        raise RuntimeError("Optimized disco kernels are not available. Please compile the extension with BUILD_CPP=1 or BUILD_CUDA=1.")
+    
+    def _disco_s2_transpose_contraction_optimized(*args, **kwargs):
+        raise RuntimeError("Optimized disco kernels are not available. Please compile the extension with BUILD_CPP=1 or BUILD_CUDA=1.")
 
 # torch kernel related functions
 def _get_psi(kernel_size: int, psi_idx: torch.Tensor, psi_vals: torch.Tensor, nlat_in: int, nlon_in: int, nlat_out: int, nlon_out: int, nlat_in_local: Optional[int] = None, nlat_out_local: Optional[int] = None, semi_transposed: Optional[bool] = False):

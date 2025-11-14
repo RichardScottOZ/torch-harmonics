@@ -41,7 +41,16 @@ from torch_harmonics.quadrature import _precompute_grid, _precompute_latitudes, 
 from torch_harmonics.disco._disco_utils import _get_psi, _disco_s2_contraction_torch, _disco_s2_transpose_contraction_torch
 from torch_harmonics.disco._disco_utils import _disco_s2_contraction_optimized, _disco_s2_transpose_contraction_optimized
 from torch_harmonics.filter_basis import get_filter_basis
-from disco_helpers import optimized_kernels_is_available, preprocess_psi
+
+# Import with fallback for disco_helpers
+try:
+    from disco_helpers import optimized_kernels_is_available, preprocess_psi
+except ImportError:
+    # Fallback if disco_helpers is not available
+    def optimized_kernels_is_available():
+        return False
+    # preprocess_psi won't be used if optimized kernels aren't available
+    preprocess_psi = None
 from torch_harmonics.disco.convolution import (
     _precompute_convolution_tensor_s2,
     DiscreteContinuousConv,
