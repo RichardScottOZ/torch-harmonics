@@ -34,12 +34,19 @@ from .shallow_water_equations import ShallowWaterSolver
 
 from .pde_dataset import PdeDataset
 from .stanford_2d3ds_dataset import StanfordSegmentationDataset, StanfordDepthDataset, Stanford2D3DSDownloader, compute_stats_s2, StanfordDatasetSubset
-from .raster_shapefile_dataset import RasterShapefileDataset, compute_stats_raster
-from .spherical_raster_dataset import SphericalRasterDataset, compute_stats_spherical
-from .raster_transforms import (
-    transform_to_equirectangular,
-    transform_shapefile_to_epsg4326,
-    raster_to_healpix,
-    preprocess_for_spherical_training,
-    validate_equirectangular_format,
-)
+
+# Import raster-related modules conditionally since they have optional dependencies
+try:
+    from .spherical_raster_dataset import SphericalRasterDataset, compute_stats_spherical
+    from .raster_shapefile_dataset import RasterShapefileDataset, compute_stats_raster
+    from .raster_transforms import (
+        transform_to_equirectangular,
+        transform_shapefile_to_epsg4326,
+        raster_to_healpix,
+        preprocess_for_spherical_training,
+        validate_equirectangular_format,
+    )
+except ImportError:
+    # These modules require optional dependencies (rasterio, geopandas)
+    # They will be available when the dependencies are installed
+    pass

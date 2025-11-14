@@ -32,8 +32,20 @@
 import warnings
 import torch
 
-# we need those helpers
-from disco_helpers import cuda_kernels_is_available, optimized_kernels_is_available
+# Try to import helper functions from the disco_helpers extension module
+# These functions check if optimized kernels are available
+try:
+    from disco_helpers import cuda_kernels_is_available, optimized_kernels_is_available
+except ImportError:
+    # If disco_helpers is not installed or doesn't have these functions,
+    # provide fallback functions that return False
+    def cuda_kernels_is_available():
+        return False
+    
+    def optimized_kernels_is_available():
+        return False
+    
+    warnings.warn("disco_helpers extension module not found or doesn't support kernel availability checks. Optimized kernels will not be used.")
 
 if optimized_kernels_is_available():
     from . import _C

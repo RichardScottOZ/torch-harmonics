@@ -34,7 +34,15 @@ from typing import Union, Tuple
 
 import torch
 import torch.nn.functional as F
-from attention_helpers import optimized_kernels_is_available
+
+# Import with fallback for attention_helpers
+try:
+    from attention_helpers import optimized_kernels_is_available
+except ImportError:
+    # Fallback if attention_helpers is not available
+    def optimized_kernels_is_available():
+        return False
+
 from . import attention_kernels
 
 # HELPER ROUTINE FOR BACKWARD setup_context
@@ -225,6 +233,11 @@ def _neighborhood_s2_attention_bwd_optimized(ctx, grad_output):
 # register backward
 if optimized_kernels_is_available():
     torch.library.register_autograd("attention_kernels::_neighborhood_s2_attention_optimized", _neighborhood_s2_attention_bwd_optimized, setup_context=_setup_context_attention_backward)
+else:
+    # Provide stub function when optimized kernels are not available
+    # This should never be called, but needs to exist for imports
+    def _neighborhood_s2_attention_optimized(*args, **kwargs):
+        raise RuntimeError("Optimized attention kernels are not available. Please compile the extension with BUILD_CPP=1 or BUILD_CUDA=1.")
 
 
 # torch kernels
