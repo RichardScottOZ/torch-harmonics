@@ -204,20 +204,18 @@ class SphericalRasterDataset(Dataset):
     def _load_labels(self):
         """Rasterize shapefile labels with support for points and polygons."""
         if self._label_data is None:
-            shapes = []
-            points = []
+            # Filter valid labels
+            gdf_valid = self.gdf[self.gdf[self.label_column].notna()].copy()
 
-            for idx, row in self.gdf.iterrows():
-                if self.label_column in row and row[self.label_column]:
-                    label_value = 1
-                    if isinstance(row[self.label_column], (int, float)):
-                        label_value = int(row[self.label_column])
+            # Convert labels to integers
+            gdf_valid['label_int'] = gdf_valid[self.label_column].apply(
+                lambda x: int(x) if isinstance(x, (int, float)) else 1
+            )
 
-                    geom_type = row.geometry.geom_type
-                    if geom_type in ['Point', 'MultiPoint']:
-                        points.append((row.geometry, label_value))
-                    else:
-                        shapes.append((row.geometry, label_value))
+            # Separate points and polygons
+            is_point = gdf_valid.geometry.geom_type.isin(['Point', 'MultiPoint'])
+            gdf_points = gdf_valid[is_point]
+            gdf_polygons = gdf_valid[~is_point]
 
             # Initialize labels
             self._label_data = np.zeros(
@@ -225,8 +223,9 @@ class SphericalRasterDataset(Dataset):
                 dtype=np.uint8
             )
 
-            # Rasterize polygons
-            if shapes:
+            # Rasterize polygons (vectorized)
+            if len(gdf_polygons) > 0:
+                shapes = [(geom, label) for geom, label in zip(gdf_polygons.geometry, gdf_polygons['label_int'])]
                 self._label_data = rasterize(
                     shapes,
                     out_shape=(self.raster_shape[1], self.raster_shape[2]),
@@ -236,32 +235,24 @@ class SphericalRasterDataset(Dataset):
                     all_touched=False
                 )
 
-            # Rasterize points with buffer
-            if points:
-                from shapely.geometry import Point
+            # Rasterize points with buffer (vectorized)
+            if len(gdf_points) > 0:
                 pixel_size = abs(self.raster_transform[0])
                 buffer_size = pixel_size * 0.5
 
-                buffered_shapes = []
-                for geom, label_val in points:
-                    if geom.geom_type == 'Point':
-                        buffered = geom.buffer(buffer_size)
-                        buffered_shapes.append((buffered, label_val))
-                    elif geom.geom_type == 'MultiPoint':
-                        for point in geom.geoms:
-                            buffered = point.buffer(buffer_size)
-                            buffered_shapes.append((buffered, label_val))
+                # Vectorized buffer operation
+                gdf_points['buffered'] = gdf_points.geometry.buffer(buffer_size)
+                buffered_shapes = [(geom, label) for geom, label in zip(gdf_points['buffered'], gdf_points['label_int'])]
 
-                if buffered_shapes:
-                    point_raster = rasterize(
-                        buffered_shapes,
-                        out_shape=(self.raster_shape[1], self.raster_shape[2]),
-                        transform=self.raster_transform,
-                        fill=0,
-                        dtype=np.uint8,
-                        all_touched=True
-                    )
-                    self._label_data = np.maximum(self._label_data, point_raster)
+                point_raster = rasterize(
+                    buffered_shapes,
+                    out_shape=(self.raster_shape[1], self.raster_shape[2]),
+                    transform=self.raster_transform,
+                    fill=0,
+                    dtype=np.uint8,
+                    all_touched=True
+                )
+                self._label_data = np.maximum(self._label_data, point_raster)
 
         return self._label_data
 
