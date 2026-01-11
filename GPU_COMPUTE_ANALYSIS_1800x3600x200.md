@@ -580,8 +580,8 @@ total_time = 50,000 steps × 4 sec/step
 ## Additional Resources
 
 ### torch-harmonics Documentation
-- GitHub: https://github.com/RichardScottOZ/torch-harmonics (this fork)
-- Original: https://github.com/NVIDIA/torch-harmonics
+- GitHub: https://github.com/RichardScottOZ/torch-harmonics
+- Original NVIDIA Repository: https://github.com/NVIDIA/torch-harmonics
 - Examples: `/examples` directory in repository
 - Notebooks: `/notebooks` directory for tutorials
 
