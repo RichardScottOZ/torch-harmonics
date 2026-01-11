@@ -50,11 +50,12 @@ This document provides a comprehensive analysis of GPU compute requirements for 
 
 | Precision | Bytes/Value | Total Size (Single Sample) |
 |-----------|-------------|---------------------------|
-| Float32 (FP32) | 4 bytes | ~5.18 GB |
-| Float16 (FP16) | 2 bytes | ~2.59 GB |
-| BFloat16 (BF16) | 2 bytes | ~2.59 GB |
+| Float32 (FP32) | 4 bytes | 4.83 GiB (5.18 GB) |
+| Float16 (FP16) | 2 bytes | 2.42 GiB (2.59 GB) |
+| BFloat16 (BF16) | 2 bytes | 2.42 GiB (2.59 GB) |
 
-**Calculation:** 1800 × 3600 × 200 × bytes_per_value
+**Calculation:** 1800 × 3600 × 200 × bytes_per_value  
+**Note:** GiB = binary gigabytes (1024³), GB = decimal gigabytes (10⁹)
 
 ---
 
@@ -63,16 +64,16 @@ This document provides a comprehensive analysis of GPU compute requirements for 
 ### 2.1 Input Data Memory
 
 #### Single Sample (Batch Size = 1)
-- **FP32:** 1800 × 3600 × 200 × 4 bytes = **5.18 GB**
-- **FP16/BF16:** 1800 × 3600 × 200 × 2 bytes = **2.59 GB**
+- **FP32:** 1800 × 3600 × 200 × 4 bytes = **4.83 GiB** (5.18 GB)
+- **FP16/BF16:** 1800 × 3600 × 200 × 2 bytes = **2.42 GiB** (2.59 GB)
 
 #### Batched Processing
-| Batch Size | FP32 | FP16/BF16 |
-|------------|------|-----------|
-| 1 | 5.18 GB | 2.59 GB |
-| 2 | 10.37 GB | 5.18 GB |
-| 4 | 20.74 GB | 10.37 GB |
-| 8 | 41.47 GB | 20.74 GB |
+| Batch Size | FP32 (GiB) | FP16/BF16 (GiB) |
+|------------|------------|-----------------|
+| 1 | 4.83 | 2.42 |
+| 2 | 9.66 | 4.83 |
+| 4 | 19.31 | 9.66 |
+| 8 | 38.62 | 19.31 |
 
 **Recommendation:** For 1800×3600×200 input, batch size of 1-2 is practical for most consumer GPUs.
 
@@ -87,8 +88,8 @@ For equiangular grid with nlat=1800, nlon=3600:
 
 **Legendre Polynomial Weights:**
 - Shape: (mmax, lmax, nlat) = (1801, 1800, 1800)
-- Size (FP32): 1801 × 1800 × 1800 × 4 bytes = **23.3 GB**
-- Size (FP64): 1801 × 1800 × 1800 × 8 bytes = **46.6 GB**
+- Size (FP32): 1801 × 1800 × 1800 × 4 bytes = 23,331,600,000 bytes = **21.7 GiB** (23.3 GB decimal)
+- Size (FP64): 1801 × 1800 × 1800 × 8 bytes = 46,663,200,000 bytes = **43.5 GiB** (46.7 GB decimal)
 
 **Note:** These weights are precomputed once and cached. They represent a significant one-time memory overhead.
 
@@ -96,7 +97,7 @@ For equiangular grid with nlat=1800, nlon=3600:
 - Input: (batch, channels, nlat, nlon) = (1, 200, 1800, 3600)
 - After FFT: (1, 200, 1800, 1801) complex values
 - After Legendre: (1, 200, lmax, mmax) = (1, 200, 1800, 1801)
-- **Size (Complex64):** 1 × 200 × 1800 × 1801 × 8 bytes = **5.18 GB**
+- **Size (Complex64):** 1 × 200 × 1800 × 1801 × 8 bytes = **4.83 GiB** (5.18 GB)
 
 ### 2.3 Model Memory Requirements
 
@@ -142,28 +143,28 @@ Typical model architectures and their approximate memory footprints:
 
 #### Inference (FP16, Batch Size = 1)
 ```
-Input Data:              2.59 GB
-SHT Weights (cached):   23.30 GB (FP32, one-time)
-Model Forward Pass:      3-5 GB
-Intermediate Buffers:    2-4 GB
+Input Data:              2.42 GiB
+SHT Weights (cached):   21.70 GiB (FP32, one-time)
+Model Forward Pass:      3-5 GiB
+Intermediate Buffers:    2-4 GiB
 ─────────────────────────────────
-Total Peak:             ~31-35 GB
+Total Peak:             ~29-33 GiB
 ```
 
 #### Training (FP16, Batch Size = 1)
 ```
-Input Data:              2.59 GB
-SHT Weights (cached):   23.30 GB (FP32, one-time)
-Model Weights:           0.5-2 GB
-Activations:             3-8 GB
-Gradients:               0.5-2 GB
-Optimizer State:         1-4 GB
-Workspace Buffers:       2-4 GB
+Input Data:              2.42 GiB
+SHT Weights (cached):   21.70 GiB (FP32, one-time)
+Model Weights:           0.5-2 GiB
+Activations:             3-8 GiB
+Gradients:               0.5-2 GiB
+Optimizer State:         1-4 GiB
+Workspace Buffers:       2-4 GiB
 ─────────────────────────────────
-Total Peak:             ~33-46 GB
+Total Peak:             ~31-44 GiB
 ```
 
-**Critical Note:** The SHT precomputed weights (~23 GB) are a fixed overhead. With weight caching and efficient memory management, operational memory during forward/backward passes is more manageable.
+**Critical Note:** The SHT precomputed weights (~22 GiB / 23 GB) are a fixed overhead. With weight caching and efficient memory management, operational memory during forward/backward passes is more manageable.
 
 ---
 
@@ -431,11 +432,11 @@ torchrun --nproc_per_node=4 train.py --enable_ddp
 
 ### 7.2 Vertical Scaling (Larger Raster)
 
-| Resolution | Memory (FP16) | Relative Compute | Relative Time |
-|------------|---------------|------------------|---------------|
-| 900×1800×200 | 0.65 GB | 1× | 1× |
-| 1800×3600×200 | 2.59 GB | 4× | 4× |
-| 3600×7200×200 | 10.37 GB | 16× | 16× |
+| Resolution | Memory (FP16, GiB) | Relative Compute | Relative Time |
+|------------|-------------------|------------------|---------------|
+| 900×1800×200 | 0.60 | 1× | 1× |
+| 1800×3600×200 | 2.42 | 4× | 4× |
+| 3600×7200×200 | 9.66 | 16× | 16× |
 
 **Key Insight:** Doubling spatial resolution → 4× memory and compute
 - Quadratic scaling in spatial dimensions
@@ -478,7 +479,8 @@ memory_GB = memory_bytes / (1024³)
 ```
 = 1800 × 3600 × 200 × 4 bytes
 = 5,184,000,000 bytes
-= 4.83 GiB (binary) or 5.18 GB (decimal)
+= 4.83 GiB (binary: 5,184,000,000 / 1024³)
+= 5.184 GB (decimal: 5,184,000,000 / 10⁹)
 ```
 
 ### A.2 FLOP Calculations
@@ -575,7 +577,8 @@ total_time = 50,000 steps × 4 sec/step
 ## Additional Resources
 
 ### torch-harmonics Documentation
-- GitHub: https://github.com/NVIDIA/torch-harmonics
+- GitHub: https://github.com/RichardScottOZ/torch-harmonics (this fork)
+- Original: https://github.com/NVIDIA/torch-harmonics
 - Examples: `/examples` directory in repository
 - Notebooks: `/notebooks` directory for tutorials
 
