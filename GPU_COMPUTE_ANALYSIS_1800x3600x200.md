@@ -13,11 +13,12 @@ This document provides a comprehensive analysis of GPU compute requirements for 
 
 ### Key Findings
 
-- **Minimum GPU Memory (Inference):** 12-16 GB
-- **Recommended GPU Memory (Training):** 24-48 GB
-- **Optimal GPU:** NVIDIA A100 (40GB/80GB), H100, or RTX 4090/3090
+- **Minimum GPU Memory (Inference, with SHT weights):** 32 GB (40 GB recommended)
+- **Recommended GPU Memory (Training):** 40-80 GB
+- **Optimal GPU:** NVIDIA A100 (40GB/80GB), H100
 - **Compute Intensity:** ~30-100 TFLOPS per forward pass (model dependent)
 - **Batch Processing:** Essential for memory management
+- **Note:** SHT precomputed weights require ~22 GiB of fixed overhead
 
 ---
 
@@ -88,8 +89,8 @@ For equiangular grid with nlat=1800, nlon=3600:
 
 **Legendre Polynomial Weights:**
 - Shape: (mmax, lmax, nlat) = (1801, 1800, 1800)
-- Size (FP32): 1801 × 1800 × 1800 × 4 bytes = 23,331,600,000 bytes = **21.7 GiB** (23.3 GB decimal)
-- Size (FP64): 1801 × 1800 × 1800 × 8 bytes = 46,663,200,000 bytes = **43.5 GiB** (46.7 GB decimal)
+- Size (FP32): 1801 × 1800 × 1800 × 4 bytes = 23,331,600,000 bytes = **21.73 GiB** (23.33 GB decimal)
+- Size (FP64): 1801 × 1800 × 1800 × 8 bytes = 46,663,200,000 bytes = **43.46 GiB** (46.66 GB decimal)
 
 **Note:** These weights are precomputed once and cached. They represent a significant one-time memory overhead.
 
@@ -144,27 +145,27 @@ Typical model architectures and their approximate memory footprints:
 #### Inference (FP16, Batch Size = 1)
 ```
 Input Data:              2.42 GiB
-SHT Weights (cached):   21.70 GiB (FP32, one-time)
+SHT Weights (cached):   21.73 GiB (FP32, one-time)
 Model Forward Pass:      3-5 GiB
 Intermediate Buffers:    2-4 GiB
 ─────────────────────────────────
-Total Peak:             ~29-33 GiB
+Total Peak:             ~29-33 GiB (31-36 GB)
 ```
 
 #### Training (FP16, Batch Size = 1)
 ```
 Input Data:              2.42 GiB
-SHT Weights (cached):   21.70 GiB (FP32, one-time)
+SHT Weights (cached):   21.73 GiB (FP32, one-time)
 Model Weights:           0.5-2 GiB
 Activations:             3-8 GiB
 Gradients:               0.5-2 GiB
 Optimizer State:         1-4 GiB
 Workspace Buffers:       2-4 GiB
 ─────────────────────────────────
-Total Peak:             ~31-44 GiB
+Total Peak:             ~32-44 GiB (34-47 GB)
 ```
 
-**Critical Note:** The SHT precomputed weights (~22 GiB / 23 GB) are a fixed overhead. With weight caching and efficient memory management, operational memory during forward/backward passes is more manageable.
+**Critical Note:** The SHT precomputed weights (~22 GiB / 23.3 GB) are a fixed overhead. With weight caching and efficient memory management, operational memory during forward/backward passes is more manageable.
 
 ---
 
@@ -281,15 +282,15 @@ Modern GPU architectures provide different compute throughputs:
 
 **Target:** Single-image inference at FP16 precision
 
-- **GPU:** NVIDIA RTX 3090 or RTX 4080 (24 GB)
+- **GPU:** NVIDIA A100 (40GB) or RTX 6000 Ada (48GB)
 - **System RAM:** 64 GB
 - **Storage:** 500 GB NVMe SSD
 - **Use Case:** Prediction/inference on pre-trained models
 
 **Constraints:**
 - Batch size limited to 1
-- May require gradient checkpointing or tiling
-- SHT weights consume most memory
+- SHT weights consume ~22 GiB of fixed overhead
+- Requires at least 32 GB GPU memory (40 GB recommended for comfort margin)
 
 ### 5.2 Recommended Configuration (Training)
 
@@ -546,9 +547,11 @@ total_time = 50,000 steps × 4 sec/step
 
 | Scenario | Minimum GPU Memory | Recommended |
 |----------|-------------------|-------------|
-| Inference (FP16, batch=1) | 24 GB | 40 GB |
+| Inference (FP16, batch=1) | 32 GB | 40 GB |
 | Training (FP16, batch=1) | 40 GB | 80 GB |
 | Training (FP16, batch=2) | 80 GB | 2×40 GB |
+
+**Note:** Minimum values include ~22 GiB SHT weight overhead
 
 ### Compute Requirements
 
